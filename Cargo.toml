@@ -1,0 +1,67 @@
+[package]
+name = "inap"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.80"
+description = "Intelligent Network Application Part (INAP) CS-1 codec (ITU-T Q.1218 / ETSI EN 300 374-1), BER encode/decode of the SSF-SCF operations + application contexts"
+authors = ["Real Time Telecom B.V."]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/Real-Time-Telecom-B-V/inap"
+homepage = "https://github.com/Real-Time-Telecom-B-V/inap"
+keywords = ["inap", "in", "ss7", "itu", "telecom"]
+categories = ["network-programming", "encoding"]
+# Keep CI/build scaffolding out of the crates.io package. `python/` (the wheel's
+# pure-Python shim) and `pyproject.toml` ship harmlessly, but the dev-only test
+# suite under `python/tests/` and the perf rig do not.
+exclude = [".github/", "docs/", "scripts/", "python/tests/"]
+
+# cdylib  → maturin/PyO3 build the loadable extension module (the wheel).
+# rlib    → crates.io consumers link this; the cdylib is inert for them.
+# Building both is the standard PyO3 mixed-layout setup (pydantic-core, orjson).
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+rasn = "0.28"
+thiserror = "2"
+
+# Optional Python bindings (feature = "python"). Kept out of the default build so
+# `cargo add inap` and crates.io consumers pull ZERO pyo3. pyo3 >= 0.28 defaults
+# modules to `gil_used = false`, so the extension loads on free-threaded ("no-GIL")
+# CPython without re-enabling the GIL. abi3-py39 → one forward-compatible wheel for
+# regular CPython 3.9+ (free-threaded wheels are built version-specific instead).
+pyo3 = { version = "0.29", optional = true, features = ["abi3-py39"] }
+
+[features]
+default = []
+# Links libpython; enables the bindings. Used by `cargo {test,clippy} --features python`.
+python = ["dep:pyo3"]
+# Wheel-only: maturin sets this. `pyo3/extension-module` tells pyo3 NOT to link
+# libpython, which breaks a Rust test binary, so this is NEVER enabled by
+# `cargo test`/`cargo clippy` (and CI must not use `--all-features`).
+extension-module = ["python", "pyo3/extension-module"]
+
+[dev-dependencies]
+# hex expresses BER/wire vectors compactly in tests and benches.
+hex = "0.4"
+criterion = "0.8"
+# Sibling SS7 codecs, used by benches/integration.rs and the tshark known-answer
+# vectors to assemble a realistic full IN stack message (INAP arg → TCAP
+# component/transaction → SCCP UDT) and measure / dissect the whole path end to
+# end. Not part of the published crate.
+tcap = "1"
+sccp = "1"
+
+[[bench]]
+name = "codec"
+harness = false
+
+[[bench]]
+name = "integration"
+harness = false
+
+[lints.clippy]
+# Bug-catching tier denied; style/dead-code stay at default warn (CI runs
+# `cargo clippy --all-targets` and honours these levels).
+correctness = { level = "deny", priority = -1 }

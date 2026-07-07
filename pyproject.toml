@@ -1,0 +1,36 @@
+# Maturin build config for the `inap` wheel. The version is single-sourced from
+# Cargo.toml (`dynamic = ["version"]`), so PyPI and crates.io always ship the same
+# number. `extension-module` is the ONLY place that feature is enabled, never by
+# `cargo test`/`cargo clippy` (it un-links libpython and breaks Rust test binaries).
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "inap"
+description = "Rust-backed Intelligent Network Application Part (INAP CS-1) operation codec (ITU-T Q.1218 / ETSI EN 300 374-1) for Python"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Real Time Telecom B.V." }]
+keywords = ["inap", "in", "ss7", "itu", "telecom"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Telecommunications Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: Free Threading :: 3 - Stable",
+    "Topic :: Communications",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/Real-Time-Telecom-B-V/inap"
+Repository = "https://github.com/Real-Time-Telecom-B-V/inap"
+
+[tool.maturin]
+# Mixed layout: compiled ext at `inap._inap`, pure-Python shim under python/.
+module-name = "inap._inap"
+python-source = "python"
+features = ["extension-module"]
