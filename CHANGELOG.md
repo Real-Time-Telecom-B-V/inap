@@ -5,6 +5,15 @@ All notable changes are documented here. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 [VERSIONING.md](VERSIONING.md) for the policy.
 
+## [1.1.0]
+
+### Added
+- `address` module: build a Q.763 Called Party Number from a digit string
+  (`called_party_number`, `international_e164`) instead of hand-packing the ISUP
+  address format. The BCD filler is `0x0` per Q.763, so it does not reuse a TBCD
+  packer. Exposed to Python as `inap.international_e164` / `.called_party_number`,
+  with the `NATURE_*` / `PLAN_ISDN` values.
+
 ## [1.0.0]
 
 First release, the INAP CS-1 operation codec (ITU-T Q.1218 / ETSI EN 300 374-1).

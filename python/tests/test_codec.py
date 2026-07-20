@@ -162,3 +162,24 @@ def test_decode_rejects_truncated() -> None:
     good = inap.ReleaseCallArg(bytes([0x90, 0x03])).encode()
     with pytest.raises(inap.InapCodecError):
         inap.ReleaseCallArg.decode(good[:1])
+
+
+def test_called_party_number_encoder() -> None:
+    # International E.164, checked against the Q.763 §3.9 format.
+    assert inap.international_e164("15550199") == bytes(
+        [0x04, 0x10, 0x51, 0x55, 0x10, 0x99]
+    )
+    # Odd length → O/E bit set (octet1 0x84), trailing 0x0 filler nibble.
+    assert inap.international_e164("155501999") == bytes(
+        [0x84, 0x10, 0x51, 0x55, 0x10, 0x99, 0x09]
+    )
+    # National number with the INN indicator set (octet2 0x90).
+    assert inap.called_party_number(
+        "15550199", inap.NATURE_NATIONAL, inap.PLAN_ISDN, True
+    ) == bytes([0x03, 0x90, 0x51, 0x55, 0x10, 0x99])
+    # The encoded number drops straight into a Connect destinationRoutingAddress.
+    dra = inap.international_e164("15550199")
+    c = inap.ConnectArg([dra])
+    assert inap.ConnectArg.decode(c.encode()).destination_routing_address == [dra]
+    with pytest.raises(inap.InapCodecError):
+        inap.international_e164("1555#199")

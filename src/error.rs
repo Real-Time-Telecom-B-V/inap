@@ -12,4 +12,7 @@ pub enum InapError {
     /// The operation code is not a known INAP operation.
     #[error("unknown INAP operation code: {0}")]
     UnknownOperation(i64),
+    /// An address digit string could not be encoded.
+    #[error("invalid address: {0}")]
+    InvalidAddress(String),
 }

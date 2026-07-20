@@ -31,6 +31,9 @@ from ._inap import (
     ESTABLISH_TEMPORARY_CONNECTION,
     EVENT_REPORT_BCSM,
     INITIAL_DP,
+    NATURE_INTERNATIONAL,
+    NATURE_NATIONAL,
+    PLAN_ISDN,
     RELEASE_CALL,
     REQUEST_REPORT_BCSM_EVENT,
     ApplyChargingArg,
@@ -43,7 +46,9 @@ from ._inap import (
     MonitorMode,
     ReleaseCallArg,
     RequestReportBcsmEventArg,
+    called_party_number,
     cs1_ssp_to_scp,
+    international_e164,
     operation_name,
 )
 
@@ -69,6 +74,12 @@ __all__ = [
     # helpers
     "operation_name",
     "cs1_ssp_to_scp",
+    # called-party-number encoder
+    "called_party_number",
+    "international_e164",
+    "NATURE_INTERNATIONAL",
+    "NATURE_NATIONAL",
+    "PLAN_ISDN",
     # operation codes
     "INITIAL_DP",
     "CONNECT",

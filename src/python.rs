@@ -658,6 +658,29 @@ fn cs1_ssp_to_scp() -> Vec<u32> {
     ac::cs1_ssp_to_scp().iter().copied().collect()
 }
 
+/// Encode a Q.763 Called Party Number from a digit string: the odd/even +
+/// nature-of-address octet, the INN + numbering-plan octet, then BCD digits.
+#[pyfunction]
+#[pyo3(signature = (digits, nature=crate::address::NATURE_INTERNATIONAL, plan=crate::address::PLAN_ISDN, inn=false))]
+fn called_party_number(
+    py: Python<'_>,
+    digits: &str,
+    nature: u8,
+    plan: u8,
+    inn: bool,
+) -> PyResult<Py<PyBytes>> {
+    let bytes = crate::address::called_party_number(digits, nature, plan, inn).map_err(inap_err)?;
+    Ok(PyBytes::new(py, &bytes).unbind())
+}
+
+/// Encode an international E.164 Called Party Number (the common CAMEL
+/// `destinationRoutingAddress` form).
+#[pyfunction]
+fn international_e164(py: Python<'_>, digits: &str) -> PyResult<Py<PyBytes>> {
+    let bytes = crate::address::international_e164(digits).map_err(inap_err)?;
+    Ok(PyBytes::new(py, &bytes).unbind())
+}
+
 // ── i64 <- Integer helper ────────────────────────────────────────────────────
 fn i64_from(v: &Integer) -> i64 {
     // ServiceKey is a small non-negative INTEGER in practice; fall back to 0 on
@@ -685,6 +708,13 @@ fn add_contents(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Helpers.
     m.add_function(wrap_pyfunction!(operation_name, m)?)?;
     m.add_function(wrap_pyfunction!(cs1_ssp_to_scp, m)?)?;
+
+    // Called-party-number encoder (digit string → Q.763 OCTET STRING).
+    m.add_function(wrap_pyfunction!(called_party_number, m)?)?;
+    m.add_function(wrap_pyfunction!(international_e164, m)?)?;
+    m.add("NATURE_INTERNATIONAL", crate::address::NATURE_INTERNATIONAL)?;
+    m.add("NATURE_NATIONAL", crate::address::NATURE_NATIONAL)?;
+    m.add("PLAN_ISDN", crate::address::PLAN_ISDN)?;
 
     // Operation codes (ITU-T Q.1218 / ETSI EN 300 374-1).
     m.add("INITIAL_DP", op_codes::INITIAL_DP)?;
