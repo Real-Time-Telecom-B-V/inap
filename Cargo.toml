@@ -1,6 +1,6 @@
 [package]
 name = "inap"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 rust-version = "1.80"
 description = "Intelligent Network Application Part (INAP) CS-1 codec (ITU-T Q.1218 / ETSI EN 300 374-1), BER encode/decode of the SSF-SCF operations + application contexts"

@@ -15,7 +15,8 @@ use rasn::prelude::*;
 
 /// Identifies the IN service logic at the SCF.
 pub type ServiceKey = Integer;
-/// Called party number, Q.763 format.
+/// Called party number, Q.763 format. Build one from a digit string with
+/// [`crate::address`].
 pub type CalledPartyNumber = OctetString;
 /// Calling party number, Q.763 format.
 pub type CallingPartyNumber = OctetString;

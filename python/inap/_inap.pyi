@@ -161,3 +161,18 @@ def operation_name(code: int) -> Optional[str]:
 
 def cs1_ssp_to_scp() -> list[int]:
     """The ``cs1-ssp-to-scp`` application-context OID arcs (0.4.0.1.1.0.3.0)."""
+
+# ── Called-party-number encoder (Q.763 §3.9) ─────────────────────────────────
+NATURE_INTERNATIONAL: int
+NATURE_NATIONAL: int
+PLAN_ISDN: int
+
+def called_party_number(
+    digits: str, nature: int = ..., plan: int = ..., inn: bool = ...
+) -> bytes:
+    """Encode a Q.763 Called Party Number from a digit string. Defaults to
+    international E.164."""
+
+def international_e164(digits: str) -> bytes:
+    """Encode an international E.164 Called Party Number (CAMEL
+    destinationRoutingAddress)."""

@@ -30,6 +30,7 @@
 //!
 //! (See [`operations`] for the full set and [`op_codes`] for the codes.)
 
+pub mod address;
 pub mod application_context;
 pub mod error;
 pub mod op_codes;
