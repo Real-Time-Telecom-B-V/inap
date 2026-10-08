@@ -79,7 +79,7 @@ fn peel(wire_hex: &str) -> (i64, Vec<u8>) {
     }
 }
 
-fn decode_arg<T: rasn::Decode>(wire_hex: &str, expected_op: i64) -> T {
+fn decode_arg<T: rasn::Decode + rasn::Encode>(wire_hex: &str, expected_op: i64) -> T {
     let (op, arg) = peel(wire_hex);
     assert_eq!(op, expected_op, "operation code");
     inap::decode(&arg).expect("inap decode")

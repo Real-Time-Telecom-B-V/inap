@@ -35,6 +35,7 @@ pub mod application_context;
 pub mod error;
 pub mod op_codes;
 pub mod operations;
+mod strict;
 pub mod types;
 
 #[cfg(feature = "python")]
@@ -52,6 +53,16 @@ pub fn encode<T: rasn::Encode>(value: &T) -> Result<Vec<u8>, InapError> {
 }
 
 /// Decode an INAP operation argument/result from BER.
-pub fn decode<T: rasn::Decode>(bytes: &[u8]) -> Result<T, InapError> {
-    rasn::ber::decode(bytes).map_err(|e| InapError::Decode(e.to_string()))
+///
+/// Decoding is strict about what `rasn` is not: a member or list element that
+/// is present on the wire and could not be decoded is an error, never a value
+/// with that member missing, and so are octets after the end of the value.
+/// See the `strict` module source for the three cases. The check re-encodes
+/// the decoded value and compares the two encodings element by element, which
+/// is why `T` has to be `Encode` as well.
+pub fn decode<T: rasn::Decode + rasn::Encode>(bytes: &[u8]) -> Result<T, InapError> {
+    let value: T = rasn::ber::decode(bytes).map_err(|e| InapError::Decode(e.to_string()))?;
+    let canonical = rasn::ber::encode(&value).map_err(|e| InapError::Decode(e.to_string()))?;
+    strict::nothing_dropped(bytes, &canonical).map_err(InapError::Decode)?;
+    Ok(value)
 }
