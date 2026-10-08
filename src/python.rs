@@ -652,10 +652,25 @@ fn operation_name(code: i64) -> Option<&'static str> {
     op_codes::operation_name(code)
 }
 
-/// The `cs1-ssp-to-scp` application-context OID as a tuple of arcs.
+/// The `cs1-ssp-to-scp` application context (`0.4.0.1.1.1.0.0`) as a list of
+/// arcs: the dialogue an SSP opens with InitialDP.
 #[pyfunction]
 fn cs1_ssp_to_scp() -> Vec<u32> {
-    ac::cs1_ssp_to_scp().iter().copied().collect()
+    ac::CS1_SSP_TO_SCP.to_vec()
+}
+
+/// The `cs1-assist-handoff-ssp-to-scp` application context
+/// (`0.4.0.1.1.1.1.0`) as a list of arcs.
+#[pyfunction]
+fn cs1_assist_handoff_ssp_to_scp() -> Vec<u32> {
+    ac::CS1_ASSIST_HANDOFF_SSP_TO_SCP.to_vec()
+}
+
+/// The `cs1-ip-to-scp` application context (`0.4.0.1.1.1.2.0`) as a list of
+/// arcs.
+#[pyfunction]
+fn cs1_ip_to_scp() -> Vec<u32> {
+    ac::CS1_IP_TO_SCP.to_vec()
 }
 
 /// Encode a Q.763 Called Party Number from a digit string: the odd/even +
@@ -708,6 +723,8 @@ fn add_contents(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Helpers.
     m.add_function(wrap_pyfunction!(operation_name, m)?)?;
     m.add_function(wrap_pyfunction!(cs1_ssp_to_scp, m)?)?;
+    m.add_function(wrap_pyfunction!(cs1_assist_handoff_ssp_to_scp, m)?)?;
+    m.add_function(wrap_pyfunction!(cs1_ip_to_scp, m)?)?;
 
     // Called-party-number encoder (digit string → Q.763 OCTET STRING).
     m.add_function(wrap_pyfunction!(called_party_number, m)?)?;
@@ -716,7 +733,7 @@ fn add_contents(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("NATURE_NATIONAL", crate::address::NATURE_NATIONAL)?;
     m.add("PLAN_ISDN", crate::address::PLAN_ISDN)?;
 
-    // Operation codes (ITU-T Q.1218 / ETSI EN 300 374-1).
+    // Operation codes (ETS 300 374-1 clause 6.4).
     m.add("INITIAL_DP", op_codes::INITIAL_DP)?;
     m.add("CONNECT", op_codes::CONNECT)?;
     m.add("RELEASE_CALL", op_codes::RELEASE_CALL)?;

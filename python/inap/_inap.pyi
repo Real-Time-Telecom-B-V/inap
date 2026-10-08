@@ -160,7 +160,14 @@ def operation_name(code: int) -> Optional[str]:
     """Name of a well-known INAP CS-1 operation code (e.g. ``0 -> "initialDP"``)."""
 
 def cs1_ssp_to_scp() -> list[int]:
-    """The ``cs1-ssp-to-scp`` application-context OID arcs (0.4.0.1.1.0.3.0)."""
+    """The ``cs1-ssp-to-scp`` application context arcs (0.4.0.1.1.1.0.0)."""
+
+def cs1_assist_handoff_ssp_to_scp() -> list[int]:
+    """The ``cs1-assist-handoff-ssp-to-scp`` application context arcs
+    (0.4.0.1.1.1.1.0)."""
+
+def cs1_ip_to_scp() -> list[int]:
+    """The ``cs1-ip-to-scp`` application context arcs (0.4.0.1.1.1.2.0)."""
 
 # ── Called-party-number encoder (Q.763 §3.9) ─────────────────────────────────
 NATURE_INTERNATIONAL: int

@@ -42,8 +42,12 @@ def test_monitor_mode_wire_values() -> None:
 
 
 def test_application_context_helper() -> None:
-    # cs1-ssp-to-scp = 0.4.0.1.1.0.3.0 (verified against the Wireshark OID db).
-    assert inap.cs1_ssp_to_scp() == [0, 4, 0, 1, 1, 0, 3, 0]
+    # ETS 300 374-1 clause 6.5: {ccitt(0) identified-organization(4) etsi(0)
+    # inDomain(1) in-network(1) ac(1) cs1-ssp-to-scp(0) version1(0)}.
+    # Before 2.0.0 this returned 0.4.0.1.1.0.3.0, a module identifier.
+    assert inap.cs1_ssp_to_scp() == [0, 4, 0, 1, 1, 1, 0, 0]
+    assert inap.cs1_assist_handoff_ssp_to_scp() == [0, 4, 0, 1, 1, 1, 1, 0]
+    assert inap.cs1_ip_to_scp() == [0, 4, 0, 1, 1, 1, 2, 0]
 
 
 # ── Known-answer vectors: Python encode() must be byte-identical to Rust ──────

@@ -47,6 +47,8 @@ from ._inap import (
     ReleaseCallArg,
     RequestReportBcsmEventArg,
     called_party_number,
+    cs1_assist_handoff_ssp_to_scp,
+    cs1_ip_to_scp,
     cs1_ssp_to_scp,
     international_e164,
     operation_name,
@@ -74,6 +76,8 @@ __all__ = [
     # helpers
     "operation_name",
     "cs1_ssp_to_scp",
+    "cs1_assist_handoff_ssp_to_scp",
+    "cs1_ip_to_scp",
     # called-party-number encoder
     "called_party_number",
     "international_e164",

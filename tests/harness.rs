@@ -6,9 +6,16 @@
 
 mod common;
 
-use common::{dissect, dissect_unchecked, Carrier};
-use inap::op_codes;
+use common::{
+    dissect, dissect_frame, dissect_unchecked, m3ua_frame_with_ssn, tcap_message, Carrier,
+};
 use inap::operations::ReleaseCallArg;
+use inap::{application_context, op_codes};
+use rasn::types::ObjectIdentifier;
+
+/// A subsystem number no Wireshark dissector claims for TCAP, so that only the
+/// application context can select the upper layer.
+const NEUTRAL_SSN: u8 = 12;
 
 #[test]
 fn release_call_is_dissected_as_a_bare_cause() {
@@ -63,6 +70,43 @@ fn inap_is_selected_by_subsystem_number_without_a_dialogue_portion() {
         return;
     };
     d.present("inap").show("inap.code.local", "31");
+}
+
+fn upper_layer(context: &ObjectIdentifier) -> Option<(bool, Vec<String>)> {
+    let tcap = tcap_message(op_codes::CONTINUE, None, &Carrier::Begin(context));
+    let d = dissect_frame(&m3ua_frame_with_ssn(tcap, NEUTRAL_SSN))?;
+    let names = d
+        .shows("tcap.aarq_application_context_name")
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+    Some((d.fields.iter().any(|f| f.name == "inap"), names))
+}
+
+#[test]
+fn inap_is_selected_by_the_application_context_alone() {
+    // With a subsystem number nobody claims, the application context in the
+    // AARQ is all Wireshark has to go by. It registers 0.4.0.1.1.1.0.0 for
+    // INAP under the name "cs1-ssp-to-scp". (It registers none of the other
+    // Core INAP contexts, so those are checked against ETS 300 374-1 only, in
+    // tests/application_context.rs.)
+    let Some((is_inap, names)) = upper_layer(&application_context::cs1_ssp_to_scp()) else {
+        return;
+    };
+    assert!(is_inap, "the context did not select INAP");
+    assert_eq!(names, ["0.4.0.1.1.1.0.0"]);
+}
+
+#[test]
+fn the_identifier_used_before_2_0_0_does_not_select_inap() {
+    // 0.4.0.1.1.0.3.0 is what `cs1_ssp_to_scp()` returned until 2.0.0. It is
+    // the identifier of the ASN.1 module Core-INAP-CS1-Codes, and Wireshark
+    // knows it under that name and does not treat it as an INAP context.
+    let Some((is_inap, names)) = upper_layer(&application_context::core_inap_cs1_codes()) else {
+        return;
+    };
+    assert!(!is_inap, "a module identifier selected INAP");
+    assert_eq!(names, ["0.4.0.1.1.0.3.0"]);
 }
 
 #[test]
