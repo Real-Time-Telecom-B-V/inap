@@ -6,8 +6,8 @@
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 An **Intelligent Network Application Part (INAP), Capability Set 1** operation
-codec, ITU-T Q.1218 / ETSI EN 300 374-1. BER encode/decode of the SSF ↔ SCF (and
-SRF) operations that drive fixed-network Intelligent Network services: service
+codec, ETSI ETS 300 374-1 (Core INAP) with the additional members of ITU-T
+Q.1218. BER encode/decode of the SSF ↔ SCF (and SRF) operations that drive fixed-network Intelligent Network services: service
 triggering, call routing, charging, and specialised-resource (announcement /
 digit collection) control. It ships as **both** a Rust crate (`cargo add inap`)
 and a Rust-backed Python wheel (`pip install inap`), built from one source tree
@@ -49,9 +49,8 @@ back = inap.InitialDpArg.decode(ber)        # -> InitialDpArg
 
 The `initialDP` operation (SSF → SCF, sent when a call hits a detection point) and
 the rest are in [`operations`](src/operations.rs); see
-[`tests/roundtrip.rs`](tests/roundtrip.rs) for worked examples and
-[`tests/vectors.rs`](tests/vectors.rs) for the tshark-validated known-answer
-vectors.
+the files under [`tests/`](tests) for worked examples of every argument, each
+with the octets it encodes to.
 
 ## Coverage
 
@@ -67,37 +66,75 @@ SpecializedResourceReport, ActivityTest), plus the
 [`application_context`](src/application_context.rs) OID helper
 (`cs1-ssp-to-scp`).
 
-The user-interaction operations (ConnectToResource, PlayAnnouncement,
-PromptAndCollectUserInformation) are byte-identical between INAP and CAP; they are
-the canonical definitions here, with `informationToSend` / `collectedInfo` carried
-as opaque octet strings. The call-establishment / charging / call-information
-operations are INAP-flavoured, for example `InitialDP` carries the fixed-network
-`iPAvailable` / `serviceInteractionIndicators` / `forwardCallIndicators` and no
-mobile IEs.
+`continue`, `disconnectForwardConnection` and `activityTest` have no argument
+and `specializedResourceReport` carries a bare NULL; those have an operation
+code and no type. The argument of `collectInformation` is not modelled.
 
 The **Python surface** covers the call-control set (InitialDP, Connect,
 ReleaseCall, RequestReportBCSMEvent, EventReportBCSM, ApplyCharging), the shared
 enums (`EventTypeBcsm` / `MonitorMode`), the operation codes, and the
-`cs1_ssp_to_scp` application-context helper. Each operation type has
-`.encode() -> bytes` and a `decode(bytes)` classmethod. The remaining operations
-are Rust-only for now.
+application-context helpers. Each operation type has `.encode() -> bytes` and a
+`decode(bytes)` classmethod. The classes expose a subset of each argument's
+members; `decode` raises `InapCodecError` for a message carrying a member the
+class has no attribute for, it does not drop the member. The remaining
+operations are Rust-only for now.
 
-## Validation
+## Conformance
 
-The codec is validated against an independent oracle rather than by round-trip
-alone (a shared encode/decode bug passes a round-trip). Each INAP argument is
-wrapped in a TCAP Begin/Invoke inside an SCCP UnitData (INAP SSN 106) and
-dissected with `tshark` (Wireshark's INAP dissector, which knows the CS-1
-operation codes, application contexts and argument layouts): every operation
-reports the correct name and decoded fields with no "Malformed" / "BER Error"
-expert info. Those exact bytes are committed as known-answer vectors in
-[`tests/vectors.rs`](tests/vectors.rs), which peel them back apart and assert the
-decoded arguments.
+**Which specification.** The types are modelled from two documents and each
+member's documentation says where it comes from:
+
+* ETS 300 374-1, September 1994 (ETSI Core INAP CS-1), clauses 6.3 to 6.5: the
+  baseline.
+* ITU-T Q.1218 (10/95), clause 2.1.3: members and alternatives that Q.1218 has
+  and Core INAP left out are modelled so that a message from a Q.1218 entity
+  decodes. They are marked "Q.1218 only".
+
+Capability set 2 is not implemented. One capability set 2 member is present for
+historical reasons (`legID` in the two call information arguments) and marked.
+
+**How it is checked.** A round-trip through the crate's own decoder cannot catch
+a mistake the encoder and the decoder share, so every encoding has two
+independent checks:
+
+* a byte vector assembled by hand from the ASN.1, with its derivation in a
+  comment, that the value must encode to and decode from;
+* a dissection by Wireshark: the argument is wrapped in TCAP, SCCP (subsystem
+  number 106) and M3UA, handed to `tshark`, and the fields its INAP dissector
+  decoded are asserted by name and value, along with the absence of any
+  malformed, unknown or BER-error marker.
+
+Both are needed. Wireshark does not check the constructed bit of a context tag,
+so it accepts a primitive element where an explicit wrapper is required; the
+byte vectors pin that. Wireshark's copy of the INAP ASN.1 is the capability set
+4 module set of Q.1248, which keeps the capability set 1 tags but differs in
+two places that matter here: it has no member on `[1]` of ApplyChargingArg
+(`sendCalculationToSCPIndication` in ETS 300 374-1), and Wireshark 4.6 has a
+dissector bug on `bcsmEventCorrelationID`. Those two members rest on the byte
+vectors alone. The Wireshark tests are skipped with a `SKIP` line when `tshark`
+or `text2pcap` is missing (set `INAP_REQUIRE_TSHARK=1` to fail instead); the
+byte vectors always run.
+
+**Decoding is strict.** `rasn` 0.28 reports an OPTIONAL member behind an explicit
+tag as absent when its content cannot be decoded, returns a SEQUENCE OF without
+a last element it cannot decode, and ignores octets after the value. In INAP
+every CHOICE-typed member (`legID`, `partyToCharge`, the event specific
+information, `bearerCapability`, `informationToSend`) is explicitly tagged, so a
+malformed one would decode as a message without it. `inap::decode` re-encodes
+what it decoded and compares the two encodings element by element; anything on
+the wire that is not accounted for is an error.
+[`tests/decoder_strictness.rs`](tests/decoder_strictness.rs) reproduces each
+case.
 
 ## Performance
 
 Single-core, `cargo bench` ([`benches/codec.rs`](benches/codec.rs)); the codec is
 `rasn` BER pack/unpack of the INAP argument types, no I/O. All fixtures synthetic.
+
+The strict decode costs one extra encode and a walk over both encodings. On an
+InitialDP with every Core INAP member (106 octets) `rasn` alone decodes in about
+0.73 µs and `inap::decode` in about 1.5 µs on one core of the development
+machine (`initial_dp_full/decode_rasn_only` against `initial_dp_full/decode`).
 
 ### Full-stack integration benchmark (INAP → TCAP → SCCP)
 
@@ -133,6 +170,7 @@ pip install inap        # Rust-backed Python wheel
 
 ```bash
 cargo test                              # unit + integration + doctests
+INAP_REQUIRE_TSHARK=1 cargo test        # fail instead of skip when tshark is missing
 cargo test --features python            # + the PyO3 binding face
 cargo clippy --all-targets -- -D warnings
 cargo clippy --features python --lib -- -D warnings

@@ -8,7 +8,7 @@ build-backend = "maturin"
 
 [project]
 name = "inap"
-description = "Rust-backed Intelligent Network Application Part (INAP CS-1) operation codec (ITU-T Q.1218 / ETSI EN 300 374-1) for Python"
+description = "Rust-backed Intelligent Network Application Part (INAP CS-1) operation codec (ETSI ETS 300 374-1 / ITU-T Q.1218) for Python"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }

@@ -1,7 +1,7 @@
 # inap, overview
 
 An **Intelligent Network Application Part (INAP), Capability Set 1** operation
-codec (ITU-T Q.1218 / ETSI EN 300 374-1). It provides the argument/result types
+codec (ETSI ETS 300 374-1 with the additional members of ITU-T Q.1218). It provides the argument/result types
 for the SSF ↔ SCF (and SRF) operations and their operation codes; the ASN.1 BER
 encode/decode is done by [`rasn`](https://crates.io/crates/rasn).
 
@@ -19,17 +19,18 @@ encode/decode is done by [`rasn`](https://crates.io/crates/rasn).
 
 INAP is a peer of MAP and CAP: all three are TCAP application parts. CAP (CAMEL)
 was derived from INAP CS-2, so this crate is a near-sibling of the CAP
-(`gsm_cap`) operation layer, same shape (rasn types + operation codes), a shared
-family of leaf IEs, and the fixed-network operations INAP adds.
+(`gsm_cap`) operation layer, same shape (rasn types + operation codes), and the
+fixed-network operations INAP adds.
 
 ## Modules
 
 | Path | Contents |
 |---|---|
-| `src/types.rs` | Common INAP types: `ServiceKey`, the address aliases (Q.763 / Q.931 `OCTET STRING`s), the `LegId` / `RequestedInformation*` types, and the shared `EventTypeBcsm` / `MonitorMode` / `BcsmEvent` (byte-identical to the CAP definitions). |
+| `src/types.rs` | The data types: `ServiceKey`, the address aliases (Q.763 / Q.931 `OCTET STRING`s), `LegId`, `BcsmEvent`, `EventSpecificInformationBcsm`, `MiscCallInfo`, `Extensions`, `InformationToSend`, `CollectedInfo`, `RequestedInformation*` and the enumerations. |
 | `src/operations.rs` | The operation arguments/results (`InitialDpArg`, `ConnectArg`, `ReleaseCallArg`, the assist / temporary-connection / call-information / charging / specialised-resource ops), each deriving `rasn` BER `Encode`/`Decode`. |
 | `src/op_codes.rs` | The operation-code constants + `operation_name()`. |
-| `src/application_context.rs` | The `cs1-ssp-to-scp` application-context OID + the `core-INAP-CS1-Codes` abstract-syntax OID. |
+| `src/application_context.rs` | The application contexts `cs1-ssp-to-scp`, `cs1-assist-handoff-ssp-to-scp` and `cs1-ip-to-scp`. |
+| `src/strict.rs` | The guard behind `decode`: nothing on the wire may be dropped. |
 | `src/lib.rs` | `encode` / `decode` helpers (BER) + re-exports; `InapError`. |
 
 ## Usage shape

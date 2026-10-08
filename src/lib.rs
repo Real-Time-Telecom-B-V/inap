@@ -1,10 +1,21 @@
 //! # inap
 //!
 //! **Intelligent Network Application Part (INAP), Capability Set 1** operation
-//! codec, ITU-T Q.1218 / ETSI EN 300 374-1. BER encode/decode of the SSF ↔ SCF
-//! (and SRF) operations that drive fixed-network Intelligent Network services:
-//! service triggering, call routing, charging, and specialised-resource
-//! (announcement / digit collection) control.
+//! codec. BER encode/decode of the SSF ↔ SCF (and SRF) operations that drive
+//! fixed-network Intelligent Network services: service triggering, call
+//! routing, charging, and specialised-resource (announcement / digit
+//! collection) control.
+//!
+//! The types are modelled from ETS 300 374-1 (September 1994), ETSI Core INAP
+//! CS-1, with the additional members of ITU-T Q.1218 (10/95), of which Core
+//! INAP is a subset, so that a message from either kind of entity decodes. The
+//! documentation of [`types`] and [`operations`] says which member comes from
+//! where. Capability set 2 is not implemented.
+//!
+//! Every encoding is pinned in the test suite by a byte vector assembled by
+//! hand from the ASN.1 and by the fields Wireshark's INAP dissector reads back
+//! from it. [`decode`] refuses a message in which a member is present and
+//! could not be read; it never returns the message without that member.
 //!
 //! INAP rides on TCAP over SCCP; this crate is the **operation layer**, the
 //! argument/result types (via [`rasn`] ASN.1 BER) and the
