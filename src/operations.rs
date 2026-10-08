@@ -80,16 +80,35 @@ pub struct ConnectArg {
 #[rasn(delegate)]
 pub struct ReleaseCallArg(pub Cause);
 
-/// ConnectToResource (op 19), SCF connects the call to a specialised resource.
-/// `resourceAddress` is an inline CHOICE (`ipRoutingAddress [0]` or `none [3]`).
+/// ConnectToResource (op 19): the SCF connects the call to a specialised
+/// resource.
 ///
-/// Canonical shared IN IE (byte-identical to the CAP definition).
+/// ```text
+/// ConnectToResourceArg ::= SEQUENCE {
+///     resourceAddress CHOICE { ... },           -- untagged, see ResourceAddress
+///     extensions                   [4]  SEQUENCE SIZE(1..numOfExtensions) OF
+///                                           ExtensionField OPTIONAL,
+///     serviceInteractionIndicators [30] ServiceInteractionIndicators OPTIONAL }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, AsnType, Decode, Encode)]
 pub struct ConnectToResourceArg {
-    #[rasn(tag(context, 0))]
-    pub resource_address_ipv4: Option<IpRoutingAddress>,
-    #[rasn(tag(context, 3))]
-    pub resource_address_none: Option<()>,
+    pub resource_address: ResourceAddress,
+    #[rasn(tag(context, 4))]
+    pub extensions: Option<Extensions>,
+    #[rasn(tag(context, 30))]
+    pub service_interaction_indicators: Option<ServiceInteractionIndicators>,
+}
+
+impl ConnectToResourceArg {
+    /// A ConnectToResource to `resource_address` with every optional member
+    /// absent.
+    pub fn new(resource_address: ResourceAddress) -> Self {
+        Self {
+            resource_address,
+            extensions: None,
+            service_interaction_indicators: None,
+        }
+    }
 }
 
 /// EstablishTemporaryConnection (op 17), SSF sets up a temporary connection to
@@ -263,41 +282,93 @@ pub struct CallInformationReportArg {
 
 // ── Specialised resources (SRF) ──────────────────────────────────────────────
 
-/// PlayAnnouncement (op 47), SCF/SRF plays an announcement or tone.
-/// `informationToSend` is carried as an opaque octet string.
+/// PlayAnnouncement (op 47): the SCF has the SRF play an announcement or a
+/// tone.
 ///
-/// Canonical shared IN IE (byte-identical to the CAP definition).
+/// ```text
+/// PlayAnnouncementArg ::= SEQUENCE {
+///     informationToSend           [0] InformationToSend,     -- CHOICE: explicit
+///     disconnectFromIPForbidden   [1] BOOLEAN DEFAULT TRUE,
+///     requestAnnouncementComplete [2] BOOLEAN DEFAULT TRUE,
+///     extensions                  [3] SEQUENCE SIZE(1..numOfExtensions) OF
+///                                         ExtensionField OPTIONAL }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, AsnType, Decode, Encode)]
 pub struct PlayAnnouncementArg {
-    #[rasn(tag(context, 0))]
-    pub information_to_send: OctetString,
+    #[rasn(tag(explicit(context, 0)))]
+    pub information_to_send: InformationToSend,
+    /// `DEFAULT TRUE`.
     #[rasn(tag(context, 1))]
     pub disconnect_from_ip_forbidden: Option<bool>,
+    /// `DEFAULT TRUE`.
     #[rasn(tag(context, 2))]
     pub request_announcement_complete: Option<bool>,
+    #[rasn(tag(context, 3))]
+    pub extensions: Option<Extensions>,
 }
 
-/// PromptAndCollectUserInformation (op 48) argument, collect digits from the
-/// user, optionally after playing a prompt. `collectedInfo` / `informationToSend`
-/// are carried as opaque octet strings.
+impl PlayAnnouncementArg {
+    /// Play `information_to_send` with every other member at its default.
+    pub fn new(information_to_send: InformationToSend) -> Self {
+        Self {
+            information_to_send,
+            disconnect_from_ip_forbidden: None,
+            request_announcement_complete: None,
+            extensions: None,
+        }
+    }
+}
+
+/// PromptAndCollectUserInformation (op 48) argument: the SCF has the SRF
+/// collect information from the user, optionally after a prompt.
 ///
-/// Canonical shared IN IE (byte-identical to the CAP definition).
+/// ```text
+/// PromptAndCollectUserInformationArg ::= SEQUENCE {
+///     collectedInfo             [0] CollectedInfo,                -- CHOICE: explicit
+///     disconnectFromIPForbidden [1] BOOLEAN DEFAULT TRUE,
+///     informationToSend         [2] InformationToSend OPTIONAL,   -- CHOICE: explicit
+///     extensions                [3] SEQUENCE SIZE(1..numOfExtensions) OF
+///                                       ExtensionField OPTIONAL }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, AsnType, Decode, Encode)]
 pub struct PromptAndCollectUserInformationArg {
-    #[rasn(tag(context, 0))]
-    pub collected_info: OctetString,
+    #[rasn(tag(explicit(context, 0)))]
+    pub collected_info: CollectedInfo,
+    /// `DEFAULT TRUE`.
     #[rasn(tag(context, 1))]
     pub disconnect_from_ip_forbidden: Option<bool>,
-    #[rasn(tag(context, 2))]
-    pub information_to_send: Option<OctetString>,
+    #[rasn(tag(explicit(context, 2)))]
+    pub information_to_send: Option<InformationToSend>,
+    #[rasn(tag(context, 3))]
+    pub extensions: Option<Extensions>,
 }
 
-/// PromptAndCollectUserInformation (op 48) result, the collected digits.
+impl PromptAndCollectUserInformationArg {
+    /// Collect `collected_info` with no prompt and every other member at its
+    /// default.
+    pub fn new(collected_info: CollectedInfo) -> Self {
+        Self {
+            collected_info,
+            disconnect_from_ip_forbidden: None,
+            information_to_send: None,
+            extensions: None,
+        }
+    }
+}
+
+/// PromptAndCollectUserInformation (op 48) result, `ReceivedInformationArg`.
 ///
-/// Canonical shared IN IE (byte-identical to the CAP definition).
+/// ```text
+/// ReceivedInformationArg ::= CHOICE {
+///     digitsResponse [0] Digits,
+///     iA5Response    [1] IA5String }   -- Q.1218 only
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, AsnType, Decode, Encode)]
 #[rasn(choice)]
 pub enum PromptAndCollectUserInformationRes {
     #[rasn(tag(context, 0))]
-    DigitsResponse(OctetString),
+    DigitsResponse(Digits),
+    /// *Q.1218 only.*
+    #[rasn(tag(context, 1))]
+    Ia5Response(Ia5String),
 }

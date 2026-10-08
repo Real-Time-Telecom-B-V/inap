@@ -21,7 +21,7 @@ use rasn::types::Integer;
 use inap::operations::{
     ApplyChargingArg, ConnectArg, EventReportBcsmArg, InitialDpArg, PlayAnnouncementArg,
 };
-use inap::types::{EventTypeBcsm, LegId};
+use inap::types::{EventTypeBcsm, InformationToSend, LegId, Tone};
 
 // ── Counting allocator ──────────────────────────────────────────────────────
 static LIVE: AtomicI64 = AtomicI64::new(0);
@@ -97,9 +97,12 @@ fn sample_event_report() -> EventReportBcsmArg {
 
 fn sample_play_announcement() -> PlayAnnouncementArg {
     PlayAnnouncementArg {
-        information_to_send: vec![0xa1, 0x03, 0x80, 0x01, 0x07].into(),
         disconnect_from_ip_forbidden: Some(true),
         request_announcement_complete: Some(true),
+        ..PlayAnnouncementArg::new(InformationToSend::Tone(Tone {
+            tone_id: 7,
+            duration: None,
+        }))
     }
 }
 
