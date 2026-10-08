@@ -1,16 +1,20 @@
 """Type stubs for the Rust-backed ``inap._inap`` extension module.
 
-INAP CS-1 operation codec, ITU-T Q.1218 / ETSI EN 300 374-1. Each operation
+INAP CS-1 operation codec, ETS 300 374-1 / ITU-T Q.1218. Each operation
 argument is built from keyword fields (``bytes`` in their ITU-T wire format),
 encoded with ``.encode() -> bytes``, and recovered with the ``decode(bytes)``
 classmethod.
+
+The classes expose a subset of the members of each argument. ``decode`` raises
+``InapCodecError`` for an argument carrying a member the class has no attribute
+for; it never returns the argument with that member dropped.
 """
 
 from __future__ import annotations
 
 from typing import Optional
 
-# ── Operation codes (ITU-T Q.1218 / ETSI EN 300 374-1) ───────────────────────
+# ── Operation codes (ETS 300 374-1 clause 6.4) ───────────────────────────────
 INITIAL_DP: int
 CONNECT: int
 RELEASE_CALL: int
@@ -23,7 +27,7 @@ CONTINUE: int
 ACTIVITY_TEST: int
 
 class InapCodecError(Exception):
-    """INAP operation encode/decode error (ITU-T Q.1218 / ETSI EN 300 374-1)."""
+    """INAP operation encode/decode error (ETS 300 374-1 / ITU-T Q.1218)."""
 
 class EventTypeBcsm:
     """EventTypeBCSM, Basic Call State Model detection-point events.

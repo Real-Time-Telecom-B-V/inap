@@ -1,6 +1,6 @@
 """inap, Rust-backed Intelligent Network Application Part (INAP CS-1) codec.
 
-INAP CS-1 (ITU-T Q.1218 / ETSI EN 300 374-1) is the ASN.1 operation set that
+INAP CS-1 (ETS 300 374-1 / ITU-T Q.1218) is the ASN.1 operation set that
 drives fixed-network Intelligent Network services, service triggering, call
 routing, charging and specialised-resource control, between the SSF and the SCF.
 This package exposes the same BER codec the Rust crate (``cargo add inap``) ships,
@@ -13,7 +13,9 @@ carried as ``bytes`` in their respective ITU-T wire formats.
 
 Covered: the call-control set (InitialDP, Connect, ReleaseCall,
 RequestReportBCSMEvent, EventReportBCSM, ApplyCharging), the shared enums, the
-operation codes, and the ``cs1_ssp_to_scp`` application-context OID helper. INAP
+operation codes, and the application-context helpers. The classes expose a
+subset of each argument's members; ``decode`` raises ``InapCodecError`` rather
+than drop a member it has no attribute for. INAP
 rides on TCAP over SCCP; wrapping these arguments in a TCAP Invoke is the caller's
 job.
 """

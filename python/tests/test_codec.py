@@ -217,6 +217,19 @@ def test_event_report_bcsm_refuses_malformed_members() -> None:
         inap.EventReportBcsmArg.decode(bytes.fromhex("3008800109a303850102"))
 
 
+def test_decode_refuses_members_the_class_does_not_expose() -> None:
+    # An InitialDP with redirectingPartyID [29]: valid, and InitialDpArg has no
+    # attribute for it. Dropping it silently would be data loss.
+    with pytest.raises(inap.InapCodecError, match="does not expose"):
+        inap.InitialDpArg.decode(bytes.fromhex("300b80012a9d06041351551077"))
+    # A Connect with callingPartysCategory [28].
+    with pytest.raises(inap.InapCodecError, match="does not expose"):
+        inap.ConnectArg.decode(bytes.fromhex("300ba006040404102143" "9c010a"))
+    # An ApplyCharging whose partyToCharge is a receivingSideID.
+    with pytest.raises(inap.InapCodecError, match="does not expose"):
+        inap.ApplyChargingArg.decode(bytes.fromhex("300a8003000102a203810101"))
+
+
 def test_apply_charging_known_answer_and_round_trip() -> None:
     a = inap.ApplyChargingArg(
         bytes([0x00, 0x01, 0x02]), party_to_charge=bytes([0x01])

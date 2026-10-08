@@ -9,9 +9,11 @@
 //!   extension, so a host (e.g. a TCAP stack) can expose inap without a second
 //!   shared object.
 //!
-//! The Python surface mirrors the Rust one: each operation type is a pyclass with
-//! `.encode() -> bytes` and a `decode(bytes)` classmethod, both backed by the
-//! crate's `rasn` BER codec. The shared enums (`EventTypeBcsm` / `MonitorMode`),
+//! Each operation type is a pyclass with `.encode() -> bytes` and a
+//! `decode(bytes)` classmethod, both backed by the crate's BER codec. The
+//! classes expose a subset of the members the Rust types have. `decode` never
+//! drops what it cannot expose: an argument carrying a member the class has no
+//! attribute for raises `InapCodecError`, and the Rust API decodes it in full. The shared enums (`EventTypeBcsm` / `MonitorMode`),
 //! the `op_codes` (+ `operation_name`), and the application-context OID helper are
 //! exposed too.
 //!
@@ -53,6 +55,19 @@ fn inap_err(e: InapError) -> PyErr {
 
 fn value_err(message: &str) -> PyErr {
     pyo3::exceptions::PyValueError::new_err(message.to_string())
+}
+
+/// Refuse a decoded argument the Python class cannot hold in full. `back` is
+/// the class converted to the Rust type again: if it differs from what was
+/// decoded, a member would be lost.
+fn complete<T: PartialEq>(decoded: &T, back: &T, what: &str) -> PyResult<()> {
+    if decoded == back {
+        return Ok(());
+    }
+    Err(InapCodecError::new_err(format!(
+        "{what} carries members the Python class does not expose; \
+         decode it with the Rust API"
+    )))
 }
 
 /// A leg from at most one of the two alternatives of LegID.
@@ -392,6 +407,7 @@ impl PyInitialDpArg {
     fn decode(_cls: &Bound<'_, pyo3::types::PyType>, data: &[u8]) -> PyResult<Self> {
         let core: InitialDpArg = crate::decode(data).map_err(inap_err)?;
         let arg = Self::from_core(&core)?;
+        complete(&core, &arg.to_core(), "InitialDP")?;
         Ok(arg)
     }
 
@@ -470,6 +486,7 @@ impl PyConnectArg {
                 .map(|b| b.to_vec())
                 .collect(),
         };
+        complete(&core, &arg.to_core(), "Connect")?;
         Ok(arg)
     }
 
@@ -579,6 +596,7 @@ impl PyRequestReportBcsmEventArg {
                 .map(PyBcsmEvent::from_core)
                 .collect(),
         };
+        complete(&core, &arg.to_core()?, "RequestReportBCSMEvent")?;
         Ok(arg)
     }
 
@@ -694,6 +712,7 @@ impl PyEventReportBcsmArg {
             receiving_side_id,
             message_type: core.misc_call_info.map(|info| info.message_type as u8),
         };
+        complete(&core, &arg.to_core()?, "EventReportBCSM")?;
         Ok(arg)
     }
 
@@ -774,6 +793,8 @@ impl PyApplyChargingArg {
         let core: ApplyChargingArg = crate::decode(data).map_err(inap_err)?;
         let party_to_charge = match &core.party_to_charge {
             Some(LegId::SendingSideId(v)) => Some(v.to_vec()),
+            // Left out here, so that the completeness check below refuses it:
+            // partyToCharge comes from the SCF and is a sendingSideID.
             Some(LegId::ReceivingSideId(_)) | None => None,
         };
         let arg = Self {
@@ -782,6 +803,7 @@ impl PyApplyChargingArg {
                 .to_vec(),
             party_to_charge,
         };
+        complete(&core, &arg.to_core(), "ApplyCharging")?;
         Ok(arg)
     }
 
