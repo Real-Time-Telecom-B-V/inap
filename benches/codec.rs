@@ -9,8 +9,6 @@
 //! EventReportBCSM.
 
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
-use rasn::types::Integer;
-
 use inap::operations::{ConnectArg, EventReportBcsmArg, InitialDpArg};
 use inap::types::EventTypeBcsm;
 
@@ -18,31 +16,20 @@ use inap::types::EventTypeBcsm;
 /// optional fields populated with synthetic wire bytes.
 fn sample_initial_dp() -> InitialDpArg {
     InitialDpArg {
-        service_key: Integer::from(42),
         called_party_number: Some(vec![0x03, 0x55, 0x01, 0x23].into()),
         calling_party_number: Some(vec![0x03, 0x55, 0x01, 0x99].into()),
         calling_partys_category: Some(vec![0x0a].into()),
         ip_ssp_capabilities: Some(vec![0x01].into()),
         ip_available: Some(vec![0x01].into()),
-        location_number: None,
-        original_called_party_id: None,
-        high_layer_compatibility: None,
-        service_interaction_indicators: None,
-        additional_calling_party_number: None,
         forward_call_indicators: Some(vec![0x00, 0x01].into()),
         event_type_bcsm: Some(EventTypeBcsm::CollectedInfo),
-        redirecting_party_id: None,
+        ..InitialDpArg::new(42)
     }
 }
 
 /// A representative Connect (SCF → SSF): a single destination routing address.
 fn sample_connect() -> ConnectArg {
-    ConnectArg {
-        destination_routing_address: vec![vec![0x03, 0x55, 0x01, 0x23].into()],
-        correlation_id: None,
-        original_called_party_id: None,
-        scf_id: None,
-    }
+    ConnectArg::new(vec![0x03, 0x55, 0x01, 0x23].into())
 }
 
 /// A representative EventReportBCSM (SSF → SCF): an O-Answer report.

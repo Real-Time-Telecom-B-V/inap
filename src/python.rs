@@ -391,7 +391,8 @@ impl PyInitialDpArg {
     #[classmethod]
     fn decode(_cls: &Bound<'_, pyo3::types::PyType>, data: &[u8]) -> PyResult<Self> {
         let core: InitialDpArg = crate::decode(data).map_err(inap_err)?;
-        Ok(Self::from_core(&core))
+        let arg = Self::from_core(&core)?;
+        Ok(arg)
     }
 
     fn __repr__(&self) -> String {
@@ -402,33 +403,26 @@ impl PyInitialDpArg {
 impl PyInitialDpArg {
     fn to_core(&self) -> InitialDpArg {
         InitialDpArg {
-            service_key: Integer::from(self.service_key),
             called_party_number: self.called_party_number.clone().map(Into::into),
             calling_party_number: self.calling_party_number.clone().map(Into::into),
             calling_partys_category: self.calling_partys_category.clone().map(Into::into),
-            ip_ssp_capabilities: None,
             ip_available: self.ip_available.clone().map(Into::into),
             location_number: self.location_number.clone().map(Into::into),
-            original_called_party_id: None,
-            high_layer_compatibility: None,
-            service_interaction_indicators: None,
-            additional_calling_party_number: None,
-            forward_call_indicators: None,
             event_type_bcsm: self.event_type_bcsm.map(|e| e.to_core()),
-            redirecting_party_id: None,
+            ..InitialDpArg::new(self.service_key)
         }
     }
 
-    fn from_core(c: &InitialDpArg) -> Self {
-        Self {
-            service_key: i64_from(&c.service_key),
+    fn from_core(c: &InitialDpArg) -> PyResult<Self> {
+        Ok(Self {
+            service_key: i64_from(&c.service_key)?,
             called_party_number: c.called_party_number.as_ref().map(|b| b.to_vec()),
             calling_party_number: c.calling_party_number.as_ref().map(|b| b.to_vec()),
             calling_partys_category: c.calling_partys_category.as_ref().map(|b| b.to_vec()),
             ip_available: c.ip_available.as_ref().map(|b| b.to_vec()),
             location_number: c.location_number.as_ref().map(|b| b.to_vec()),
             event_type_bcsm: c.event_type_bcsm.map(PyEventTypeBcsm::from_core),
-        }
+        })
     }
 }
 
@@ -469,13 +463,14 @@ impl PyConnectArg {
     #[classmethod]
     fn decode(_cls: &Bound<'_, pyo3::types::PyType>, data: &[u8]) -> PyResult<Self> {
         let core: ConnectArg = crate::decode(data).map_err(inap_err)?;
-        Ok(Self {
+        let arg = Self {
             destination_routing_address: core
                 .destination_routing_address
                 .iter()
                 .map(|b| b.to_vec())
                 .collect(),
-        })
+        };
+        Ok(arg)
     }
 
     fn __repr__(&self) -> String {
@@ -494,9 +489,7 @@ impl PyConnectArg {
                 .iter()
                 .map(|v| v.clone().into())
                 .collect(),
-            correlation_id: None,
-            original_called_party_id: None,
-            scf_id: None,
+            ..ConnectArg::new(Vec::new().into())
         }
     }
 }
@@ -771,17 +764,7 @@ impl PyApplyChargingArg {
 
     /// Encode the ApplyCharging argument to BER `bytes`.
     fn encode<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let core = ApplyChargingArg {
-            ach_billing_charging_characteristics: self
-                .ach_billing_charging_characteristics
-                .clone()
-                .into(),
-            party_to_charge: self
-                .party_to_charge
-                .clone()
-                .map(|v| LegId::SendingSideId(v.into())),
-        };
-        let bytes = crate::encode(&core).map_err(inap_err)?;
+        let bytes = crate::encode(&self.to_core()).map_err(inap_err)?;
         Ok(to_pybytes(py, &bytes))
     }
 
@@ -789,19 +772,33 @@ impl PyApplyChargingArg {
     #[classmethod]
     fn decode(_cls: &Bound<'_, pyo3::types::PyType>, data: &[u8]) -> PyResult<Self> {
         let core: ApplyChargingArg = crate::decode(data).map_err(inap_err)?;
-        let party_to_charge = core.party_to_charge.map(|leg| match leg {
-            LegId::SendingSideId(v) | LegId::ReceivingSideId(v) => v.to_vec(),
-        });
-        Ok(Self {
+        let party_to_charge = match &core.party_to_charge {
+            Some(LegId::SendingSideId(v)) => Some(v.to_vec()),
+            Some(LegId::ReceivingSideId(_)) | None => None,
+        };
+        let arg = Self {
             ach_billing_charging_characteristics: core
                 .ach_billing_charging_characteristics
                 .to_vec(),
             party_to_charge,
-        })
+        };
+        Ok(arg)
     }
 
     fn __repr__(&self) -> String {
         "ApplyChargingArg(..)".to_string()
+    }
+}
+
+impl PyApplyChargingArg {
+    fn to_core(&self) -> ApplyChargingArg {
+        ApplyChargingArg {
+            party_to_charge: self
+                .party_to_charge
+                .clone()
+                .map(|v| LegId::SendingSideId(v.into())),
+            ..ApplyChargingArg::new(self.ach_billing_charging_characteristics.clone().into())
+        }
     }
 }
 
@@ -859,10 +856,10 @@ fn international_e164(py: Python<'_>, digits: &str) -> PyResult<Py<PyBytes>> {
 }
 
 // ── i64 <- Integer helper ────────────────────────────────────────────────────
-fn i64_from(v: &Integer) -> i64 {
-    // ServiceKey is a small non-negative INTEGER in practice; fall back to 0 on
-    // the (never-hit, synthetic-data) overflow path rather than panic.
-    i64::try_from(v).unwrap_or(0)
+fn i64_from(v: &Integer) -> PyResult<i64> {
+    // ServiceKey is Integer4. A value that does not fit is not a service key;
+    // say so instead of handing Python a made-up number.
+    i64::try_from(v).map_err(|_| InapCodecError::new_err("integer out of range"))
 }
 
 // ── Module wiring ────────────────────────────────────────────────────────────
