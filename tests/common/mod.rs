@@ -550,6 +550,28 @@ where
     }
 }
 
+/// The one-extension list used wherever an `extensions` member is exercised:
+/// extension type 1, criticality abort, value BOOLEAN TRUE (the example of ETS
+/// 300 374-1 clause 6.3).
+///
+/// ```text
+/// 30 0b              ExtensionField, 3 + 3 + 5
+///    02 01 01           type INTEGER 1
+///    0a 01 01           criticality ENUMERATED abort(1)
+///    a1 03              value [1], an open type, so EXPLICIT
+///       01 01 ff           BOOLEAN TRUE
+/// ```
+pub const EXTENSION: &str = "30 0b 02 01 01 0a 01 01 a1 03 01 01 ff";
+
+/// The value [`EXTENSION`] encodes, as a one-element list.
+pub fn extensions() -> inap::types::Extensions {
+    vec![inap::types::ExtensionField {
+        extension_type: 1.into(),
+        criticality: Some(inap::types::CriticalityType::Abort),
+        value: Any::new(vec![0x01, 0x01, 0xff]),
+    }]
+}
+
 /// OCTET STRING from hex.
 pub fn octets(text: &str) -> rasn::types::OctetString {
     vector(text).into()

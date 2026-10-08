@@ -32,6 +32,10 @@ def test_event_type_bcsm_wire_values() -> None:
     # The enum's integer value is the on-wire ASN.1 ENUMERATED encoding.
     assert int(inap.EventTypeBcsm.CollectedInfo) == 2
     assert int(inap.EventTypeBcsm.OAnswer) == 7
+    # 1, 8 and 16 were missing before 2.0.0 (ETS 300 374-1 clause 6.3).
+    assert int(inap.EventTypeBcsm.OrigAttemptAuthorized) == 1
+    assert int(inap.EventTypeBcsm.OMidCall) == 8
+    assert int(inap.EventTypeBcsm.TMidCall) == 16
     assert int(inap.EventTypeBcsm.TAbandon) == 18
 
 
@@ -125,18 +129,51 @@ def test_request_report_bcsm_known_answer_and_round_trip() -> None:
     assert back.bcsm_events[0].monitor_mode == inap.MonitorMode.NotifyAndContinue
 
 
-def test_request_report_bcsm_with_leg_id() -> None:
+def test_request_report_bcsm_with_leg_and_criteria() -> None:
     r = inap.RequestReportBcsmEventArg(
         [
             inap.BcsmEvent(
-                inap.EventTypeBcsm.ODisconnect,
+                inap.EventTypeBcsm.ONoAnswer,
                 inap.MonitorMode.Interrupted,
-                leg_id=bytes([0x01]),
+                sending_side_id=bytes([0x02]),
+                application_timer=30,
             ),
         ]
     )
+    # Hand-assembled from the ASN.1: legID [2] and dPSpecificCriteria [30] are
+    # CHOICEs, so both are explicit, constructed wrappers (a2 / be).
+    assert r.encode() == bytes.fromhex("3014a0123010800106810100a203800102be0381011e")
     back = inap.RequestReportBcsmEventArg.decode(r.encode())
-    assert back.bcsm_events[0].leg_id == bytes([0x01])
+    assert back.bcsm_events[0].sending_side_id == bytes([0x02])
+    assert back.bcsm_events[0].receiving_side_id is None
+    assert back.bcsm_events[0].application_timer == 30
+    assert back.bcsm_events[0].number_of_digits is None
+
+
+def test_request_report_bcsm_refuses_the_encoding_of_1_x() -> None:
+    # legID as a primitive [2]: not a LegID. rasn alone would hand back the
+    # event without its leg.
+    with pytest.raises(inap.InapCodecError):
+        inap.RequestReportBcsmEventArg.decode(
+            bytes.fromhex("300da00b300980010981010082" "0102")
+        )
+
+
+def test_bcsm_event_refuses_two_alternatives_of_a_choice() -> None:
+    with pytest.raises(ValueError):
+        inap.BcsmEvent(
+            inap.EventTypeBcsm.ODisconnect,
+            inap.MonitorMode.Interrupted,
+            sending_side_id=bytes([0x01]),
+            receiving_side_id=bytes([0x02]),
+        )
+    with pytest.raises(ValueError):
+        inap.BcsmEvent(
+            inap.EventTypeBcsm.ONoAnswer,
+            inap.MonitorMode.Interrupted,
+            number_of_digits=4,
+            application_timer=30,
+        )
 
 
 def test_event_report_bcsm_known_answer_and_round_trip() -> None:
@@ -144,7 +181,40 @@ def test_event_report_bcsm_known_answer_and_round_trip() -> None:
     assert e.encode() == KAT_ERB
     back = inap.EventReportBcsmArg.decode(e.encode())
     assert back.event_type_bcsm == inap.EventTypeBcsm.OAnswer
-    assert back.misc_call_info is None
+    assert back.message_type is None
+    assert back.receiving_side_id is None
+
+
+def test_event_report_bcsm_disconnect() -> None:
+    e = inap.EventReportBcsmArg(
+        inap.EventTypeBcsm.ODisconnect,
+        event_specific_information_bcsm=bytes.fromhex("a70480028090"),
+        receiving_side_id=bytes([0x02]),
+        message_type=1,
+    )
+    # 30 15  80 01 09  a2 06 a7 04 80 02 80 90  a3 03 81 01 02  a4 03 80 01 01
+    wire = bytes.fromhex("3015800109a206a70480028090a303810102a403800101")
+    assert e.encode() == wire
+    back = inap.EventReportBcsmArg.decode(wire)
+    assert back.event_specific_information_bcsm == bytes.fromhex("a70480028090")
+    assert back.receiving_side_id == bytes([0x02])
+    assert back.sending_side_id is None
+    assert back.message_type == 1
+
+
+def test_event_report_bcsm_refuses_malformed_members() -> None:
+    # Not an EventSpecificInformationBCSM alternative.
+    with pytest.raises(inap.InapCodecError):
+        inap.EventReportBcsmArg(
+            inap.EventTypeBcsm.ODisconnect,
+            event_specific_information_bcsm=bytes.fromhex("bf2a00"),
+        )
+    with pytest.raises(ValueError):
+        inap.EventReportBcsmArg(inap.EventTypeBcsm.OAnswer, message_type=2)
+    # legID [3] holding an alternative LegID does not have: rasn reports the
+    # member as absent, this codec refuses the message.
+    with pytest.raises(inap.InapCodecError):
+        inap.EventReportBcsmArg.decode(bytes.fromhex("3008800109a303850102"))
 
 
 def test_apply_charging_known_answer_and_round_trip() -> None:

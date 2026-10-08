@@ -22,14 +22,7 @@
 
 use rasn::prelude::*;
 
-use crate::types::{
-    AdditionalCallingPartyNumber, AssistingSspIpRoutingAddress, BcsmEvent, CalledPartyNumber,
-    CallingPartyNumber, CallingPartysCategory, Cause, CorrelationId, EventTypeBcsm,
-    ForwardCallIndicators, HighLayerCompatibility, IpAvailable, IpRoutingAddress,
-    IpsspCapabilities, LegId, LocationNumber, MiscCallInfo, OriginalCalledPartyId,
-    RedirectingPartyId, RequestedInformation, RequestedInformationType, ScfId,
-    ServiceInteractionIndicators, ServiceKey,
-};
+use crate::types::*;
 
 // ── Call establishment / triggering ──────────────────────────────────────────
 
@@ -123,25 +116,80 @@ pub struct AssistRequestInstructionsArg {
 
 // ── Event / detection-point handling ─────────────────────────────────────────
 
-/// RequestReportBCSMEvent (op 23), SCF arms a set of BCSM detection points.
+/// RequestReportBCSMEvent (op 23): the SCF arms detection points.
 ///
-/// Uses the canonical shared [`BcsmEvent`].
+/// ```text
+/// RequestReportBCSMEventArg ::= SEQUENCE {
+///     bcsmEvents             [0] SEQUENCE SIZE (1..numOfBCSMEvents) OF BCSMEvent,
+///     bcsmEventCorrelationID [1] CorrelationID OPTIONAL,   -- Q.1218 only
+///     extensions             [2] SEQUENCE SIZE (1..numOfExtensions) OF
+///                                    ExtensionField OPTIONAL }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, AsnType, Decode, Encode)]
 pub struct RequestReportBcsmEventArg {
     #[rasn(tag(context, 0))]
     pub bcsm_events: Vec<BcsmEvent>,
+    /// *Q.1218 only.*
+    #[rasn(tag(context, 1))]
+    pub bcsm_event_correlation_id: Option<CorrelationId>,
+    #[rasn(tag(context, 2))]
+    pub extensions: Option<Extensions>,
 }
 
-/// EventReportBCSM (op 24), SSF reports a BCSM event to the SCF.
+impl RequestReportBcsmEventArg {
+    /// A request arming `bcsm_events`.
+    pub fn new(bcsm_events: Vec<BcsmEvent>) -> Self {
+        Self {
+            bcsm_events,
+            bcsm_event_correlation_id: None,
+            extensions: None,
+        }
+    }
+}
+
+/// EventReportBCSM (op 24): the SSF reports an armed event.
+///
+/// ```text
+/// EventReportBCSMArg ::= SEQUENCE {
+///     eventTypeBCSM                [0] EventTypeBCSM,
+///     bcsmEventCorrelationID       [1] CorrelationID OPTIONAL,   -- Q.1218 only
+///     eventSpecificInformationBCSM [2] EventSpecificInformationBCSM OPTIONAL,
+///                                                                -- CHOICE: explicit
+///     legID                        [3] LegID OPTIONAL,           -- CHOICE: explicit
+///     miscCallInfo                 [4] MiscCallInfo DEFAULT { messageType request },
+///     extensions                   [5] SEQUENCE SIZE(1..numOfExtensions) OF
+///                                          ExtensionField OPTIONAL }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, AsnType, Decode, Encode)]
 pub struct EventReportBcsmArg {
     #[rasn(tag(context, 0))]
     pub event_type_bcsm: EventTypeBcsm,
-    /// `legID` is a CHOICE, hence EXPLICIT tagging.
+    /// *Q.1218 only.*
+    #[rasn(tag(context, 1))]
+    pub bcsm_event_correlation_id: Option<CorrelationId>,
+    #[rasn(tag(explicit(context, 2)))]
+    pub event_specific_information_bcsm: Option<EventSpecificInformationBcsm>,
     #[rasn(tag(explicit(context, 3)))]
     pub leg_id: Option<LegId>,
+    /// `DEFAULT { messageType request }`.
     #[rasn(tag(context, 4))]
     pub misc_call_info: Option<MiscCallInfo>,
+    #[rasn(tag(context, 5))]
+    pub extensions: Option<Extensions>,
+}
+
+impl EventReportBcsmArg {
+    /// A report of `event_type_bcsm` with every optional member absent.
+    pub fn new(event_type_bcsm: EventTypeBcsm) -> Self {
+        Self {
+            event_type_bcsm,
+            bcsm_event_correlation_id: None,
+            event_specific_information_bcsm: None,
+            leg_id: None,
+            misc_call_info: None,
+            extensions: None,
+        }
+    }
 }
 
 /// ResetTimer (op 33), SCF restarts an SSF application timer (Tssf).

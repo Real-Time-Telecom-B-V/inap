@@ -47,11 +47,7 @@ fn sample_connect() -> ConnectArg {
 
 /// A representative EventReportBCSM (SSF → SCF): an O-Answer report.
 fn sample_event_report() -> EventReportBcsmArg {
-    EventReportBcsmArg {
-        event_type_bcsm: EventTypeBcsm::OAnswer,
-        leg_id: None,
-        misc_call_info: None,
-    }
+    EventReportBcsmArg::new(EventTypeBcsm::OAnswer)
 }
 
 fn bench_codec(c: &mut Criterion) {

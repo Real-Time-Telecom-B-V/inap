@@ -33,7 +33,10 @@ use crate::operations::{
     ApplyChargingArg, ConnectArg, EventReportBcsmArg, InitialDpArg, ReleaseCallArg,
     RequestReportBcsmEventArg,
 };
-use crate::types::{BcsmEvent, EventTypeBcsm, LegId, MonitorMode};
+use crate::types::{
+    BcsmEvent, DpSpecificCriteria, EventSpecificInformationBcsm, EventTypeBcsm, LegId,
+    MiscCallInfo, MonitorMode,
+};
 use crate::InapError;
 
 // ── Error mapping ───────────────────────────────────────────────────────────
@@ -41,11 +44,35 @@ create_exception!(
     inap,
     InapCodecError,
     PyException,
-    "INAP operation encode/decode error (ITU-T Q.1218 / ETSI EN 300 374-1)."
+    "INAP operation encode/decode error (ETS 300 374-1 / ITU-T Q.1218)."
 );
 
 fn inap_err(e: InapError) -> PyErr {
     InapCodecError::new_err(e.to_string())
+}
+
+fn value_err(message: &str) -> PyErr {
+    pyo3::exceptions::PyValueError::new_err(message.to_string())
+}
+
+/// A leg from at most one of the two alternatives of LegID.
+fn leg_from(sending: &Option<Vec<u8>>, receiving: &Option<Vec<u8>>) -> PyResult<Option<LegId>> {
+    match (sending, receiving) {
+        (Some(_), Some(_)) => Err(value_err(
+            "sending_side_id and receiving_side_id are alternatives of one CHOICE",
+        )),
+        (Some(leg), None) => Ok(Some(LegId::SendingSideId(leg.clone().into()))),
+        (None, Some(leg)) => Ok(Some(LegId::ReceivingSideId(leg.clone().into()))),
+        (None, None) => Ok(None),
+    }
+}
+
+fn leg_parts(leg: Option<&LegId>) -> (Option<Vec<u8>>, Option<Vec<u8>>) {
+    match leg {
+        Some(LegId::SendingSideId(leg)) => (Some(leg.to_vec()), None),
+        Some(LegId::ReceivingSideId(leg)) => (None, Some(leg.to_vec())),
+        None => (None, None),
+    }
 }
 
 /// `Vec<u8>` → owned Python `bytes`.
@@ -66,18 +93,21 @@ fn to_pybytes<'py>(py: Python<'py>, v: &[u8]) -> Bound<'py, PyBytes> {
 )]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum PyEventTypeBcsm {
+    OrigAttemptAuthorized = 1,
     CollectedInfo = 2,
     AnalysedInformation = 3,
     RouteSelectFailure = 4,
     OCalledPartyBusy = 5,
     ONoAnswer = 6,
     OAnswer = 7,
+    OMidCall = 8,
     ODisconnect = 9,
     OAbandon = 10,
     TermAttemptAuthorized = 12,
     TBusy = 13,
     TNoAnswer = 14,
     TAnswer = 15,
+    TMidCall = 16,
     TDisconnect = 17,
     TAbandon = 18,
 }
@@ -85,6 +115,9 @@ pub enum PyEventTypeBcsm {
 impl PyEventTypeBcsm {
     fn to_core(self) -> EventTypeBcsm {
         match self {
+            PyEventTypeBcsm::OrigAttemptAuthorized => EventTypeBcsm::OrigAttemptAuthorized,
+            PyEventTypeBcsm::OMidCall => EventTypeBcsm::OMidCall,
+            PyEventTypeBcsm::TMidCall => EventTypeBcsm::TMidCall,
             PyEventTypeBcsm::CollectedInfo => EventTypeBcsm::CollectedInfo,
             PyEventTypeBcsm::AnalysedInformation => EventTypeBcsm::AnalysedInformation,
             PyEventTypeBcsm::RouteSelectFailure => EventTypeBcsm::RouteSelectFailure,
@@ -104,6 +137,9 @@ impl PyEventTypeBcsm {
 
     fn from_core(e: EventTypeBcsm) -> Self {
         match e {
+            EventTypeBcsm::OrigAttemptAuthorized => PyEventTypeBcsm::OrigAttemptAuthorized,
+            EventTypeBcsm::OMidCall => PyEventTypeBcsm::OMidCall,
+            EventTypeBcsm::TMidCall => PyEventTypeBcsm::TMidCall,
             EventTypeBcsm::CollectedInfo => PyEventTypeBcsm::CollectedInfo,
             EventTypeBcsm::AnalysedInformation => PyEventTypeBcsm::AnalysedInformation,
             EventTypeBcsm::RouteSelectFailure => PyEventTypeBcsm::RouteSelectFailure,
@@ -155,8 +191,13 @@ impl PyMonitorMode {
     }
 }
 
-/// BCSMEvent, one event detection-point configuration entry for
+/// BCSMEvent, one detection point to arm, for
 /// [`PyRequestReportBcsmEventArg`].
+///
+/// `sending_side_id` / `receiving_side_id` are the two alternatives of the
+/// `legID` CHOICE (one octet each, `b"\x01"` is leg 1); give at most one.
+/// `number_of_digits` / `application_timer` are the two alternatives of
+/// `dPSpecificCriteria`; give at most one.
 #[pyclass(name = "BcsmEvent", module = "inap._inap", from_py_object)]
 #[derive(Clone)]
 pub struct PyBcsmEvent {
@@ -164,28 +205,53 @@ pub struct PyBcsmEvent {
     pub event_type_bcsm: PyEventTypeBcsm,
     #[pyo3(get)]
     pub monitor_mode: PyMonitorMode,
-    leg_id: Option<Vec<u8>>,
+    sending_side_id: Option<Vec<u8>>,
+    receiving_side_id: Option<Vec<u8>>,
+    #[pyo3(get)]
+    pub number_of_digits: Option<u8>,
+    #[pyo3(get)]
+    pub application_timer: Option<u16>,
 }
 
 #[pymethods]
 impl PyBcsmEvent {
     #[new]
-    #[pyo3(signature = (event_type_bcsm, monitor_mode, *, leg_id = None))]
+    #[pyo3(signature = (
+        event_type_bcsm,
+        monitor_mode,
+        *,
+        sending_side_id = None,
+        receiving_side_id = None,
+        number_of_digits = None,
+        application_timer = None,
+    ))]
     fn new(
         event_type_bcsm: PyEventTypeBcsm,
         monitor_mode: PyMonitorMode,
-        leg_id: Option<Vec<u8>>,
-    ) -> Self {
-        Self {
+        sending_side_id: Option<Vec<u8>>,
+        receiving_side_id: Option<Vec<u8>>,
+        number_of_digits: Option<u8>,
+        application_timer: Option<u16>,
+    ) -> PyResult<Self> {
+        let event = Self {
             event_type_bcsm,
             monitor_mode,
-            leg_id,
-        }
+            sending_side_id,
+            receiving_side_id,
+            number_of_digits,
+            application_timer,
+        };
+        event.to_core()?;
+        Ok(event)
     }
 
     #[getter]
-    fn leg_id<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
-        self.leg_id.as_ref().map(|v| to_pybytes(py, v))
+    fn sending_side_id<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
+        self.sending_side_id.as_ref().map(|v| to_pybytes(py, v))
+    }
+    #[getter]
+    fn receiving_side_id<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
+        self.receiving_side_id.as_ref().map(|v| to_pybytes(py, v))
     }
 
     fn __repr__(&self) -> String {
@@ -197,19 +263,39 @@ impl PyBcsmEvent {
 }
 
 impl PyBcsmEvent {
-    fn to_core(&self) -> BcsmEvent {
-        BcsmEvent {
+    fn to_core(&self) -> PyResult<BcsmEvent> {
+        let dp_specific_criteria = match (self.number_of_digits, self.application_timer) {
+            (Some(_), Some(_)) => {
+                return Err(value_err(
+                    "number_of_digits and application_timer are alternatives of one CHOICE",
+                ))
+            }
+            (Some(digits), None) => Some(DpSpecificCriteria::NumberOfDigits(digits)),
+            (None, Some(timer)) => Some(DpSpecificCriteria::ApplicationTimer(timer)),
+            (None, None) => None,
+        };
+        Ok(BcsmEvent {
             event_type_bcsm: self.event_type_bcsm.to_core(),
             monitor_mode: self.monitor_mode.to_core(),
-            leg_id: self.leg_id.clone().map(Into::into),
-        }
+            leg_id: leg_from(&self.sending_side_id, &self.receiving_side_id)?,
+            dp_specific_criteria,
+        })
     }
 
     fn from_core(e: &BcsmEvent) -> Self {
+        let (sending_side_id, receiving_side_id) = leg_parts(e.leg_id.as_ref());
+        let (number_of_digits, application_timer) = match e.dp_specific_criteria {
+            Some(DpSpecificCriteria::NumberOfDigits(digits)) => (Some(digits), None),
+            Some(DpSpecificCriteria::ApplicationTimer(timer)) => (None, Some(timer)),
+            None => (None, None),
+        };
         Self {
             event_type_bcsm: PyEventTypeBcsm::from_core(e.event_type_bcsm),
             monitor_mode: PyMonitorMode::from_core(e.monitor_mode),
-            leg_id: e.leg_id.as_ref().map(|b| b.to_vec()),
+            sending_side_id,
+            receiving_side_id,
+            number_of_digits,
+            application_timer,
         }
     }
 }
@@ -485,10 +571,7 @@ impl PyRequestReportBcsmEventArg {
 
     /// Encode the RequestReportBCSMEvent argument to BER `bytes`.
     fn encode<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let core = RequestReportBcsmEventArg {
-            bcsm_events: self.bcsm_events.iter().map(|e| e.to_core()).collect(),
-        };
-        let bytes = crate::encode(&core).map_err(inap_err)?;
+        let bytes = crate::encode(&self.to_core()?).map_err(inap_err)?;
         Ok(to_pybytes(py, &bytes))
     }
 
@@ -496,13 +579,14 @@ impl PyRequestReportBcsmEventArg {
     #[classmethod]
     fn decode(_cls: &Bound<'_, pyo3::types::PyType>, data: &[u8]) -> PyResult<Self> {
         let core: RequestReportBcsmEventArg = crate::decode(data).map_err(inap_err)?;
-        Ok(Self {
+        let arg = Self {
             bcsm_events: core
                 .bcsm_events
                 .iter()
                 .map(PyBcsmEvent::from_core)
                 .collect(),
-        })
+        };
+        Ok(arg)
     }
 
     fn __repr__(&self) -> String {
@@ -513,9 +597,26 @@ impl PyRequestReportBcsmEventArg {
     }
 }
 
+impl PyRequestReportBcsmEventArg {
+    fn to_core(&self) -> PyResult<RequestReportBcsmEventArg> {
+        let events: PyResult<Vec<BcsmEvent>> =
+            self.bcsm_events.iter().map(PyBcsmEvent::to_core).collect();
+        Ok(RequestReportBcsmEventArg::new(events?))
+    }
+}
+
 // ── EventReportBCSM (op 24) ──────────────────────────────────────────────────
 
 /// EventReportBCSM argument, SSF → SCF, report a BCSM event.
+///
+/// `sending_side_id` / `receiving_side_id` are the two alternatives of the
+/// `legID` CHOICE; give at most one (an SSF reports with `receiving_side_id`).
+/// `message_type` is the `messageType` of `miscCallInfo`: 0 request, 1
+/// notification, `None` to leave the member out (the default is request).
+/// `event_specific_information_bcsm` is the BER encoding of the chosen
+/// alternative of EventSpecificInformationBCSM, for example
+/// `bytes.fromhex("a70480028090")` for an oDisconnectSpecificInfo carrying a
+/// release cause; it is checked when the argument is built.
 #[pyclass(
     name = "EventReportBcsmArg",
     module = "inap._inap",
@@ -525,33 +626,60 @@ impl PyRequestReportBcsmEventArg {
 pub struct PyEventReportBcsmArg {
     #[pyo3(get)]
     pub event_type_bcsm: PyEventTypeBcsm,
-    misc_call_info: Option<Vec<u8>>,
+    event_specific_information_bcsm: Option<Vec<u8>>,
+    sending_side_id: Option<Vec<u8>>,
+    receiving_side_id: Option<Vec<u8>>,
+    #[pyo3(get)]
+    pub message_type: Option<u8>,
 }
 
 #[pymethods]
 impl PyEventReportBcsmArg {
     #[new]
-    #[pyo3(signature = (event_type_bcsm, *, misc_call_info = None))]
-    fn new(event_type_bcsm: PyEventTypeBcsm, misc_call_info: Option<Vec<u8>>) -> Self {
-        Self {
+    #[pyo3(signature = (
+        event_type_bcsm,
+        *,
+        event_specific_information_bcsm = None,
+        sending_side_id = None,
+        receiving_side_id = None,
+        message_type = None,
+    ))]
+    fn new(
+        event_type_bcsm: PyEventTypeBcsm,
+        event_specific_information_bcsm: Option<Vec<u8>>,
+        sending_side_id: Option<Vec<u8>>,
+        receiving_side_id: Option<Vec<u8>>,
+        message_type: Option<u8>,
+    ) -> PyResult<Self> {
+        let arg = Self {
             event_type_bcsm,
-            misc_call_info,
-        }
+            event_specific_information_bcsm,
+            sending_side_id,
+            receiving_side_id,
+            message_type,
+        };
+        arg.to_core()?;
+        Ok(arg)
     }
 
     #[getter]
-    fn misc_call_info<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
-        self.misc_call_info.as_ref().map(|v| to_pybytes(py, v))
+    fn event_specific_information_bcsm<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
+        self.event_specific_information_bcsm
+            .as_ref()
+            .map(|v| to_pybytes(py, v))
+    }
+    #[getter]
+    fn sending_side_id<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
+        self.sending_side_id.as_ref().map(|v| to_pybytes(py, v))
+    }
+    #[getter]
+    fn receiving_side_id<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
+        self.receiving_side_id.as_ref().map(|v| to_pybytes(py, v))
     }
 
     /// Encode the EventReportBCSM argument to BER `bytes`.
     fn encode<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let core = EventReportBcsmArg {
-            event_type_bcsm: self.event_type_bcsm.to_core(),
-            leg_id: None,
-            misc_call_info: self.misc_call_info.clone().map(Into::into),
-        };
-        let bytes = crate::encode(&core).map_err(inap_err)?;
+        let bytes = crate::encode(&self.to_core()?).map_err(inap_err)?;
         Ok(to_pybytes(py, &bytes))
     }
 
@@ -559,10 +687,21 @@ impl PyEventReportBcsmArg {
     #[classmethod]
     fn decode(_cls: &Bound<'_, pyo3::types::PyType>, data: &[u8]) -> PyResult<Self> {
         let core: EventReportBcsmArg = crate::decode(data).map_err(inap_err)?;
-        Ok(Self {
+        let (sending_side_id, receiving_side_id) = leg_parts(core.leg_id.as_ref());
+        let event_specific_information_bcsm = core
+            .event_specific_information_bcsm
+            .as_ref()
+            .map(crate::encode)
+            .transpose()
+            .map_err(inap_err)?;
+        let arg = Self {
             event_type_bcsm: PyEventTypeBcsm::from_core(core.event_type_bcsm),
-            misc_call_info: core.misc_call_info.as_ref().map(|b| b.to_vec()),
-        })
+            event_specific_information_bcsm,
+            sending_side_id,
+            receiving_side_id,
+            message_type: core.misc_call_info.map(|info| info.message_type as u8),
+        };
+        Ok(arg)
     }
 
     fn __repr__(&self) -> String {
@@ -570,6 +709,29 @@ impl PyEventReportBcsmArg {
             "EventReportBcsmArg(event_type_bcsm={})",
             self.event_type_bcsm as i64
         )
+    }
+}
+
+impl PyEventReportBcsmArg {
+    fn to_core(&self) -> PyResult<EventReportBcsmArg> {
+        let misc_call_info = match self.message_type {
+            None => None,
+            Some(0) => Some(MiscCallInfo::request()),
+            Some(1) => Some(MiscCallInfo::notification()),
+            Some(_) => return Err(value_err("message_type is 0 (request) or 1 (notification)")),
+        };
+        let event_specific_information_bcsm = self
+            .event_specific_information_bcsm
+            .as_deref()
+            .map(crate::decode::<EventSpecificInformationBcsm>)
+            .transpose()
+            .map_err(inap_err)?;
+        Ok(EventReportBcsmArg {
+            event_specific_information_bcsm,
+            leg_id: leg_from(&self.sending_side_id, &self.receiving_side_id)?,
+            misc_call_info,
+            ..EventReportBcsmArg::new(self.event_type_bcsm.to_core())
+        })
     }
 }
 

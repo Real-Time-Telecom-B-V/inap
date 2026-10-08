@@ -32,18 +32,21 @@ class EventTypeBcsm:
     (``int(...)`` yields the wire value), but it is not a Python ``enum.IntEnum``.
     """
 
+    OrigAttemptAuthorized: EventTypeBcsm
     CollectedInfo: EventTypeBcsm
     AnalysedInformation: EventTypeBcsm
     RouteSelectFailure: EventTypeBcsm
     OCalledPartyBusy: EventTypeBcsm
     ONoAnswer: EventTypeBcsm
     OAnswer: EventTypeBcsm
+    OMidCall: EventTypeBcsm
     ODisconnect: EventTypeBcsm
     OAbandon: EventTypeBcsm
     TermAttemptAuthorized: EventTypeBcsm
     TBusy: EventTypeBcsm
     TNoAnswer: EventTypeBcsm
     TAnswer: EventTypeBcsm
+    TMidCall: EventTypeBcsm
     TDisconnect: EventTypeBcsm
     TAbandon: EventTypeBcsm
     def __int__(self) -> int: ...
@@ -61,17 +64,29 @@ class MonitorMode:
     def __hash__(self) -> int: ...
 
 class BcsmEvent:
-    """One event detection-point configuration entry."""
+    """One detection point to arm.
+
+    ``sending_side_id`` / ``receiving_side_id`` are the two alternatives of the
+    ``legID`` CHOICE (one octet, ``b"\x01"`` is leg 1); give at most one.
+    ``number_of_digits`` / ``application_timer`` are the two alternatives of
+    ``dPSpecificCriteria``; give at most one. ``ValueError`` otherwise.
+    """
 
     event_type_bcsm: EventTypeBcsm
     monitor_mode: MonitorMode
-    leg_id: Optional[bytes]
+    sending_side_id: Optional[bytes]
+    receiving_side_id: Optional[bytes]
+    number_of_digits: Optional[int]
+    application_timer: Optional[int]
     def __init__(
         self,
         event_type_bcsm: EventTypeBcsm,
         monitor_mode: MonitorMode,
         *,
-        leg_id: Optional[bytes] = ...,
+        sending_side_id: Optional[bytes] = ...,
+        receiving_side_id: Optional[bytes] = ...,
+        number_of_digits: Optional[int] = ...,
+        application_timer: Optional[int] = ...,
     ) -> None: ...
 
 class InitialDpArg:
@@ -127,15 +142,28 @@ class RequestReportBcsmEventArg:
     def decode(cls, data: bytes) -> RequestReportBcsmEventArg: ...
 
 class EventReportBcsmArg:
-    """EventReportBCSM argument (op 24), SSF → SCF."""
+    """EventReportBCSM argument (op 24), SSF → SCF.
+
+    ``event_specific_information_bcsm`` is the BER encoding of the chosen
+    alternative of EventSpecificInformationBCSM (``bytes.fromhex("a70480028090")``
+    is an oDisconnectSpecificInfo with a release cause). ``message_type`` is the
+    ``messageType`` of ``miscCallInfo``: 0 request, 1 notification, ``None`` to
+    leave the member out.
+    """
 
     event_type_bcsm: EventTypeBcsm
-    misc_call_info: Optional[bytes]
+    event_specific_information_bcsm: Optional[bytes]
+    sending_side_id: Optional[bytes]
+    receiving_side_id: Optional[bytes]
+    message_type: Optional[int]
     def __init__(
         self,
         event_type_bcsm: EventTypeBcsm,
         *,
-        misc_call_info: Optional[bytes] = ...,
+        event_specific_information_bcsm: Optional[bytes] = ...,
+        sending_side_id: Optional[bytes] = ...,
+        receiving_side_id: Optional[bytes] = ...,
+        message_type: Optional[int] = ...,
     ) -> None: ...
     def encode(self) -> bytes: ...
     @classmethod

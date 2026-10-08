@@ -92,11 +92,7 @@ fn sample_connect() -> ConnectArg {
 }
 
 fn sample_event_report() -> EventReportBcsmArg {
-    EventReportBcsmArg {
-        event_type_bcsm: EventTypeBcsm::OAnswer,
-        leg_id: None,
-        misc_call_info: None,
-    }
+    EventReportBcsmArg::new(EventTypeBcsm::OAnswer)
 }
 
 fn sample_play_announcement() -> PlayAnnouncementArg {
