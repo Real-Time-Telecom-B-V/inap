@@ -22,6 +22,11 @@
 //! operations and the specialised-resource / call-information args are Rust-only
 //! for now (see `operations` / the README).
 
+// `from_py_object` on a `Copy` pyclass expands to a `.clone()` of the borrowed
+// value, which clippy 1.99 reports at the attribute. The clone is pyo3's, not
+// ours, so it is allowed for this module instead of hand-writing `FromPyObject`.
+#![allow(clippy::clone_on_copy)]
+
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
