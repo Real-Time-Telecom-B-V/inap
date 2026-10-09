@@ -1,9 +1,9 @@
 [package]
 name = "inap"
-version = "1.1.0"
+version = "2.0.0"
 edition = "2021"
 rust-version = "1.80"
-description = "Intelligent Network Application Part (INAP) CS-1 codec (ITU-T Q.1218 / ETSI EN 300 374-1), BER encode/decode of the SSF-SCF operations + application contexts"
+description = "Intelligent Network Application Part (INAP) CS-1 codec (ETSI ETS 300 374-1 / ITU-T Q.1218), BER encode/decode of the SSF-SCF operations + application contexts"
 authors = ["Real Time Telecom B.V."]
 license = "MIT"
 readme = "README.md"
@@ -46,8 +46,8 @@ extension-module = ["python", "pyo3/extension-module"]
 # hex expresses BER/wire vectors compactly in tests and benches.
 hex = "0.4"
 criterion = "0.8"
-# Sibling SS7 codecs, used by benches/integration.rs and the tshark known-answer
-# vectors to assemble a realistic full IN stack message (INAP arg → TCAP
+# Sibling SS7 codecs, used by benches/integration.rs and the Wireshark harness
+# (tests/common) to assemble a realistic full IN stack message (INAP arg → TCAP
 # component/transaction → SCCP UDT) and measure / dissect the whole path end to
 # end. Not part of the published crate.
 tcap = "1"

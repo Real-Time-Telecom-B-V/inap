@@ -1,10 +1,19 @@
-//! INAP CS-1 operation codes (local operation values used in TCAP Invoke
-//! components), ITU-T Q.1218 / ETSI EN 300 374-1.
+//! INAP CS-1 operation codes: the `localValue` an Invoke carries, from ETS
+//! 300 374-1 (September 1994) clause 6.4, module `Core-INAP-CS1-Codes`. ITU-T
+//! Q.1218 (10/95) clause 2.1.4 assigns the same values. Each constant is
+//! checked against the specification and against the name Wireshark gives the
+//! code in `tests/op_codes.rs`.
 //!
 //! CAP (3GPP TS 29.078) was derived from INAP CS-2, which extends CS-1, so the
-//! shared SSF-SCF call-control operations carry the **same** local codes here as
-//! in the `gsm_cap` crate (initialDP = 0, connect = 20, …). The codes below are
-//! the CS-1 SSF-SCF / SRF set.
+//! shared SSF-SCF call-control operations carry the same codes here as in the
+//! `gsm_cap` crate (initialDP = 0, connect = 20, ...).
+//!
+//! ETS 300 374-1 assigns seven more codes, to operations this crate has no
+//! argument type for and therefore no constant: requestNotificationChargingEvent
+//! 25, eventNotificationCharging 26, initiateCallAttempt 32, callGap 41,
+//! activateServiceFiltering 42, serviceFilteringResponse 43,
+//! sendChargingInformation 46. The error codes of clause 6.4 are not given
+//! either.
 
 /// Call establishment / triggering.
 pub const INITIAL_DP: i64 = 0;
@@ -40,9 +49,9 @@ pub const SPECIALIZED_RESOURCE_REPORT: i64 = 49;
 pub const CANCEL: i64 = 53;
 pub const ACTIVITY_TEST: i64 = 55;
 
-/// The name of a well-known INAP CS-1 operation code, if any. Names match the
-/// ASN.1 operation identifiers in ETSI EN 300 374-1 (as reported by the Wireshark
-/// INAP dissector).
+/// The name of an INAP CS-1 operation code this crate has a constant for.
+/// Names are the value references of ETS 300 374-1 clause 6.4, which are also
+/// what the Wireshark INAP dissector prints.
 pub fn operation_name(code: i64) -> Option<&'static str> {
     Some(match code {
         INITIAL_DP => "initialDP",
