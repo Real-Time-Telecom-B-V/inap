@@ -50,7 +50,7 @@ criterion = "0.8"
 # (tests/common) to assemble a realistic full IN stack message (INAP arg → TCAP
 # component/transaction → SCCP UDT) and measure / dissect the whole path end to
 # end. Not part of the published crate.
-tcap = "1"
+tcap = "2"
 sccp = "1"
 
 [[bench]]
