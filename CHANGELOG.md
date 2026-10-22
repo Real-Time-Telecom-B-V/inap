@@ -5,6 +5,17 @@ All notable changes are documented here. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See
 [VERSIONING.md](VERSIONING.md) for the policy.
 
+## [3.0.0]
+
+### Changed
+- **`rasn` 0.29** (was 0.28) and **`tcap` 3** (was 1). `rasn` and `tcap`
+  types are in the public API, so a caller moves to both with this release.
+- rasn 0.29 refuses a malformed OPTIONAL member behind an EXPLICIT tag and a
+  malformed last element of a SEQUENCE OF, where 0.28 dropped them. `decode`
+  already failed on those; it still does, and the error now names the ASN.1
+  type it could not read (`No valid choice for LegId`) instead of the member's
+  tag.
+
 ## [2.0.0]
 
 Wire-format corrections. Until this release the suite tested encode against

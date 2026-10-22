@@ -115,7 +115,9 @@ fn request_report_bcsm_event_before_2_0_0_is_refused() {
     // A LegID has to be a constructed [2] wrapping the chosen alternative.
     let old = vector("30 0d a0 0b 30 09 80 01 09 81 01 00 82 01 02");
     let error = refused::<RequestReportBcsmEventArg>(&old);
-    assert!(error.contains("could not be decoded"), "{error}");
+    // rasn 0.29 names the LegId it cannot read; 0.28 decoded it as absent and
+    // this crate's own check said "could not be decoded".
+    assert!(error.contains("LegId"), "{error}");
 
     // Wireshark throws on it: the event list is cut short and the packet is
     // marked malformed.

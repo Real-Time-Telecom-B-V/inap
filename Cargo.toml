@@ -1,6 +1,6 @@
 [package]
 name = "inap"
-version = "2.0.0"
+version = "3.0.0"
 edition = "2021"
 rust-version = "1.80"
 description = "Intelligent Network Application Part (INAP) CS-1 codec (ETSI ETS 300 374-1 / ITU-T Q.1218), BER encode/decode of the SSF-SCF operations + application contexts"
@@ -23,7 +23,7 @@ exclude = [".github/", "docs/", "scripts/", "python/tests/"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-rasn = "0.28"
+rasn = "0.29"
 thiserror = "2"
 
 # Optional Python bindings (feature = "python"). Kept out of the default build so
@@ -50,7 +50,7 @@ criterion = "0.8"
 # (tests/common) to assemble a realistic full IN stack message (INAP arg → TCAP
 # component/transaction → SCCP UDT) and measure / dissect the whole path end to
 # end. Not part of the published crate.
-tcap = "1"
+tcap = "3"
 sccp = "1"
 
 [[bench]]
